@@ -702,7 +702,17 @@ class ExprNode(Node):
                 if not isinstance(src, NoneNode):
                     src = PyTypeTestNode(src, dst_type, env)
         elif src.type.is_pyobject:
-            src = CoerceFromPyTypeNode(dst_type, src, env)
+            ### If assigning to a cdef char by doing something like cdef char c = 's'[0],
+            ### coerce the strint type to char literal here instead of failing later.
+            ### This is only here because a lot of our code uses this "feature".
+            if (dst_type.is_int
+                    and dst_type.rank == 0
+                    and isinstance(src, IndexNode)
+                    and isinstance(src.base, StringNode)
+                    and not src.memslice_index):
+                src = src.base.coerce_to(dst_type, env)
+            else:
+                src = CoerceFromPyTypeNode(dst_type, src, env)
         elif (dst_type.is_complex
               and src_type != dst_type
               and dst_type.assignable_from(src_type)):
